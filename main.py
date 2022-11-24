@@ -3,7 +3,7 @@ from flask_ngrok import run_with_ngrok
 from werkzeug.utils import secure_filename
 import os
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import time
 import json
 import numpy as np
@@ -11,7 +11,7 @@ from datetime import timedelta
 
 # 设置允许的文件格式
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'JPG', 'PNG', 'bmp'}
-model = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card.pt')
+
 
 
 def allowed_file(filename):
@@ -27,15 +27,26 @@ app.send_file_max_age_default = timedelta(seconds=1)
 # flask全局变量太难用，用文件保存数字
 def set_num(img_num):
     record_dict = {"img_num": img_num}
-    with open("static/images/record.json", "w") as f:
+    with open("static/record.json", "w") as f:
         json.dump(record_dict, f)
         print("加载入文件完成...")
 
 def get_num():
-    with open("static/images/record.json", 'r') as load_f:
+    with open("static/record.json", 'r') as load_f:
         load_dict = json.load(load_f)
         img_num = load_dict['img_num']
     return img_num
+
+# 给图片添加文本和方框
+def image_add_text(img, name, rect, text_color=(255, 125, 0), text_size=30):
+
+
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype("util/SmileySans-Oblique.ttf", text_size)
+    draw.rectangle(list(rect), outline=(0, 255, 0), width=3)
+    draw.text((rect[0], rect[1]), name, text_color, font=font)
+
+    return img
 
 
 
@@ -64,19 +75,25 @@ def upload():
 
         # 使用Opencv转换一下图片格式和名称
         img = Image.open(upload_path)
-        img_name = str(img_num) + '.jpg'
+
         # 模型读取图像
         results = model([img], size=640)
         print(results.pandas().xyxy)
-
-        img2 = Image.fromarray(np.array(results.ims[0]))
-        img2.save(os.path.join('./static/images', img_name))
-
         # 返回预测结果
         try:
-            predict_txt = results.names[int(results.xyxy[-1][-1][-1])]
+            name = results.pandas().xyxy[0].to_numpy()[0][-1]
+            rect = results.pandas().xyxy[0].to_numpy()[0][:4]
+            # 标注后的结果图像
+            pred_img = image_add_text(img, name, rect)
+
+            img_name = str(img_num) + '.jpg'
+            pred_img.save(os.path.join('./static/images', img_name))
+            predict_txt = name
         except:
             predict_txt = "无"
+            img_name = ''
+
+
         text = user_input + " | " + predict_txt
         print(predict_txt)
         return render_template('upload_ok.html', userinput=text, img_name=img_name, val1=time.time())
@@ -86,5 +103,6 @@ def upload():
 
 
 if __name__ == '__main__':
+    model = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card02.pt')
     # app.debug = True
     app.run()
