@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, make_response, jsonify
-from flask_ngrok import run_with_ngrok
+# from flask_ngrok import run_with_ngrok
 from werkzeug.utils import secure_filename
 import os
 import torch
@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 import time
 import json
 import numpy as np
+import easyocr
 from datetime import timedelta
 
 # 设置允许的文件格式
@@ -19,7 +20,7 @@ def allowed_file(filename):
 
 
 app = Flask(__name__)
-run_with_ngrok(app)
+# run_with_ngrok(app)
 # 设置静态文件缓存过期时间
 app.send_file_max_age_default = timedelta(seconds=1)
 
@@ -76,6 +77,11 @@ def upload():
         # 使用Opencv转换一下图片格式和名称
         img = Image.open(upload_path)
 
+        if use_ocr:
+            read_text = reader.readtext(np.array(img), detail=0)
+        else:
+            read_text = '没有设置文字读取'
+
         # 模型读取图像
         results = model([img], size=640)
         print(results.pandas().xyxy)
@@ -96,7 +102,7 @@ def upload():
 
         text = user_input + " | " + predict_txt
         print(predict_txt)
-        return render_template('upload_ok.html', userinput=text, img_name=img_name, val1=time.time())
+        return render_template('upload_ok.html', userinput=text, ort_text = str(read_text), img_name=img_name, val1=time.time())
 
 
     return render_template('upload.html')
@@ -104,5 +110,10 @@ def upload():
 
 if __name__ == '__main__':
     model = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card02.pt')
+    reader = easyocr.Reader(['en'])
+
+    # 是否使用OCR，使用后速度会下降很多，相对于yolo
+    use_ocr = True
     # app.debug = True
+
     app.run()
