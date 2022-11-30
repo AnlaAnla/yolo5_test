@@ -1,7 +1,8 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, make_response, jsonify
 # from flask_ngrok import run_with_ngrok
 from werkzeug.utils import secure_filename
-import os
+
 import torch
 from PIL import Image, ImageDraw, ImageFont
 import time
@@ -78,7 +79,9 @@ def upload():
         img = Image.open(upload_path)
 
         if use_ocr:
-            read_text = reader.readtext(np.array(img), detail=0)
+            read_text = reader.readtext(np.array(img), detail=0,
+                                        allowlist=allow_list,
+                                        rotation_info=[-30, 30])
         else:
             read_text = '没有设置文字读取'
 
@@ -110,10 +113,18 @@ def upload():
 
 if __name__ == '__main__':
     model = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card02.pt')
+
     reader = easyocr.Reader(['en'])
+    allow_list = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+                  'U',
+                  'V', 'W', 'X', 'Y', 'Z',
+                  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                  'u',
+                  'v', 'w', 'x', 'y', 'z',
+                  "'", "\"", ',', '?', '.', ' ']
 
     # 是否使用OCR，使用后速度会下降很多，相对于yolo
     use_ocr = True
     # app.debug = True
-
+    print(torch.cuda.is_available())
     app.run()
