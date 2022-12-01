@@ -8,7 +8,7 @@ def image_add_text(img, results, text_color=(255, 125, 0), text_size=30):
     rect = results.pandas().xyxy[0].to_numpy()[0][:4]
 
     draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("util/SmileySans-Oblique.ttf", text_size)
+    font = ImageFont.truetype("utils/SmileySans-Oblique.ttf", text_size)
     draw.rectangle(list(rect), outline=(0, 255, 0), width=3)
     draw.text((rect[0], rect[1]), name, text_color, font=font)
 
