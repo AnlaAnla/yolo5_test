@@ -3,8 +3,11 @@ from flask import Flask, render_template, request, redirect, url_for, make_respo
 from models.common import DetectMultiBackend
 from utils.augmentations import classify_transforms
 from utils.dataloaders import LoadImages
-from utils.general import Profile
+from utils.general import Profile, check_img_size, non_max_suppression, scale_boxes
+from utils.torch_utils import select_device
 from werkzeug.utils import secure_filename
+from utils.plots import Annotator, colors
+import cv2
 
 import torch
 import torch.nn.functional as F
@@ -19,9 +22,9 @@ from datetime import timedelta
     WARNING
     下面三行用在window系统，在linux有问题的话，删掉
 '''
-import pathlib
-temp = pathlib.PosixPath
-pathlib.PosixPath = pathlib.WindowsPath
+# import pathlib
+# temp = pathlib.PosixPath
+# pathlib.PosixPath = pathlib.WindowsPath
 # -----------------------------------------
 
 # 设置允许的文件格式
@@ -92,36 +95,76 @@ def predict_oneImg(model, img_path, imgsz = (224, 224), dt = (Profile(), Profile
     return cls_text
 
 
-# 给图片添加文本和方框
-def image_add_text(img, name, rect, text_color=(255, 125, 0), text_size=30):
+def dtect_img(model, img_path, size=640):
+    img_name = ''
+    name = ''
+    conf = 0
 
 
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("utils/SmileySans-Oblique.ttf", text_size)
-    draw.rectangle(list(rect), outline=(0, 255, 0), width=3)
-    draw.text((rect[0], rect[1]), name, text_color, font=font)
+    imgsz = (640, 640)
+    bs = 1  # batch_size
+    conf_thres = 0.25
+    iou_thres = 0.45
+    max_det = 1000
+    classes = None
+    agnostic_nms = True
 
-    return img
+    stride, names, pt = model.stride, model.names, model.pt
+    imgsz = check_img_size(imgsz, s=stride)  # check image size
 
 
-def dtect_img(model, img, size=640):
-    results = model([img], size=size)
-    print(results.pandas().xyxy)
-    # 返回预测结果
-    try:
-        name = results.pandas().xyxy[0].to_numpy()[0][-1]
-        rect = results.pandas().xyxy[0].to_numpy()[0][:4]
-        # 标注后的结果图像
-        pred_img = image_add_text(img, name, rect)
+    dataset = LoadImages(img_path, img_size=imgsz, stride=stride, auto=pt)
 
-        img_name = str(get_num()) + '.jpg'
-        pred_img.save(os.path.join('./static/images', img_name))
-        predict_txt = name
-    except:
-        predict_txt = "无"
-        img_name = ''
+    model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
+    seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
 
-    return (img_name, predict_txt)
+    # 数据读取
+    for path, im, im0s, vid_cap, s in dataset:
+        with dt[0]:
+            im = torch.from_numpy(im).to(model.device)
+            im = im.half() if model.fp16 else im.float()  # uint8 to fp16/32
+            im /= 255  # 0 - 255 to 0.0 - 1.0
+            if len(im.shape) == 3:
+                im = im[None]  # expand for batch dim
+
+        # Inference
+        with dt[1]:
+            pred = model(im)
+        # NMS
+        with dt[2]:
+            pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+
+        det = pred[0]
+        annotator = Annotator(im0s, line_width=3, example=str(names))
+        if len(det):
+            # Rescale boxes from img_size to im0 size
+            det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0s.shape).round()
+
+            # Print results
+            for c in det[:, 5].unique():
+                n = (det[:, 5] == c).sum()  # detections per class
+                s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+
+            # Write results
+            *xyxy, conf, cls = det.tolist()[0]
+            name = names[int(c)]
+            conf = f'{float(conf):.2f}'
+            print(xyxy, "可信度：", conf, name)
+
+            # 图像标注
+            label = name + " " + conf
+            annotator.box_label(xyxy, label, color=colors(c, True))
+
+
+            img_name = str(get_num()) + '.jpg'
+            save_path = (os.path.join('./static/images', img_name))
+
+            # 保存图片
+            img = annotator.result()
+            cv2.imwrite(save_path, img)
+
+
+    return img_name, name, conf
 
 
 
@@ -136,15 +179,14 @@ def upload():
 
         upload_path = save_requestImg(f)
 
-
         # 访问次数记录
         set_num(get_num() + 1)
 
-        # 使用Opencv转换一下图片格式和名称
-        img = Image.open(upload_path)
 
         # 是否执行OCR
         if use_ocr:
+            # 使用Opencv转换一下图片格式和名称
+            img = Image.open(upload_path)
             read_text = reader.readtext(np.array(img), detail=0,
                                         allowlist=allow_list,rotation_info=[-30, 30])
         else:
@@ -152,19 +194,19 @@ def upload():
 
 
         # 模型读取图像
-        img_name, predict_txt = dtect_img(model_detect, img=img)
+        img_name, predict_name, predict_conf = dtect_img(model_detect, img_path=upload_path)
 
-        if predict_txt == 'PRIZM':
+        if predict_name == 'PRIZM':
             cls_text = predict_oneImg(model_cls_p, img_path=upload_path)
-        elif predict_txt == 'MOSAIC':
+        elif predict_name == 'MOSAIC':
             cls_text = predict_oneImg(model_cls_m, img_path=upload_path)
         else:
             cls_text = ''
         print(img_name,"分类： ", cls_text)
 
 
-        text = user_input + " | " + predict_txt
-        print(predict_txt)
+        text = user_input + " | " + predict_name
+        print(text)
         return render_template('upload_ok.html', userinput=text, cls_text=cls_text,
                                ort_text = str(read_text), img_name=img_name, val1=time.time())
 
@@ -173,9 +215,15 @@ def upload():
 
 
 if __name__ == '__main__':
-    model_detect = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card02.pt')
-    model_cls_p = DetectMultiBackend('weights/ball_card_cls2prime.pt')
-    model_cls_m = DetectMultiBackend('weights/ball_card_cls2mosaic.pt')
+
+    device = ''
+    device = select_device(device)
+
+
+    # model_detect = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card02.pt')
+    model_detect = DetectMultiBackend('weights/ball_card02.pt', device=device)
+    model_cls_p = DetectMultiBackend('weights/ball_card_cls2prime.pt', device=device)
+    model_cls_m = DetectMultiBackend('weights/ball_card_cls2mosaic.pt', device=device)
 
     reader = easyocr.Reader(['en'])
     allow_list = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
