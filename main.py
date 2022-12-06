@@ -19,7 +19,7 @@ import easyocr
 from datetime import timedelta
 
 '''
-    WARNING
+    WARNING 
     下面三行用在window系统，在linux有问题的话，删掉
 '''
 # import pathlib
