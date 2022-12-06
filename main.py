@@ -91,7 +91,7 @@ def predict_oneImg(model, img_path, imgsz = (224, 224), dt = (Profile(), Profile
 
     cls_text = ""
     for i in top3pre:
-        cls_text += ("{}: {:.3}%".format(classes_names[i], prob_list[i] * 100)) + "  -  "
+        cls_text += ("{}: {:.3}%".format(classes_names[i], prob_list[i] * 100)) + "     "
     return cls_text
 
 
