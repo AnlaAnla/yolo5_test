@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
 
     # 是否使用OCR，使用后速度会下降很多，相对于yolo
-    use_ocr = False
+    use_ocr = True
     app.debug = False
     print(torch.cuda.is_available())
     app.run()
