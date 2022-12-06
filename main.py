@@ -155,7 +155,9 @@ def upload():
         img_name, predict_txt = dtect_img(model_detect, img=img)
 
         if predict_txt == 'PRIZM':
-            cls_text = predict_oneImg(model_cls, img_path=upload_path)
+            cls_text = predict_oneImg(model_cls_p, img_path=upload_path)
+        elif predict_txt == 'MOSAIC':
+            cls_text = predict_oneImg(model_cls_m, img_path=upload_path)
         else:
             cls_text = ''
         print(img_name,"分类： ", cls_text)
@@ -172,7 +174,8 @@ def upload():
 
 if __name__ == '__main__':
     model_detect = torch.hub.load('ultralytics/yolov5', 'custom', path='weights/ball_card02.pt')
-    model_cls = DetectMultiBackend('weights/ball_card_cls2prime.pt')
+    model_cls_p = DetectMultiBackend('weights/ball_card_cls2prime.pt')
+    model_cls_m = DetectMultiBackend('weights/ball_card_cls2mosaic.pt')
 
     reader = easyocr.Reader(['en'])
     allow_list = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',

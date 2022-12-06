@@ -17,3 +17,4 @@ if __name__ == '__main__':
         os.remove(os.path.join(path, name))
 
     set_num(0)
+    print('end')
