@@ -22,9 +22,9 @@ from datetime import timedelta
     WARNING
     下面三行用在window系统，在linux有问题的话，删掉
 '''
-import pathlib
-temp = pathlib.PosixPath
-pathlib.PosixPath = pathlib.WindowsPath
+# import pathlib
+# temp = pathlib.PosixPath
+# pathlib.PosixPath = pathlib.WindowsPath
 # -----------------------------------------
 
 # 设置允许的文件格式
