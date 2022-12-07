@@ -255,7 +255,7 @@ def imahe_api():
         return json.dumps(result)
 
 
-    return render_template('img_api.html')
+    return json.dumps("")
 
 
 
