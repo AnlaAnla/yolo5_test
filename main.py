@@ -89,9 +89,9 @@ def predict_oneImg(model, img_path, imgsz = (224, 224), dt = (Profile(), Profile
     prob_list = pred.tolist()[0]
     top3pre = pred.argsort(descending=True).tolist()[0][:3]
 
-    cls_text = ""
+    cls_text = []
     for i in top3pre:
-        cls_text += ("{}: {:.3}%".format(classes_names[i], prob_list[i] * 100)) + "     "
+        cls_text.append("{}: {:.3}%".format(classes_names[i], prob_list[i] * 100))
     return cls_text
 
 
@@ -213,6 +213,51 @@ def upload():
 
     return render_template('upload.html')
 
+@app.route('/image_api', methods=['POST', 'GET'])  # 添加路由
+def imahe_api():
+    if request.method == 'POST':
+
+        # 文件上传及保存
+        f = request.files['file']
+        upload_path = save_requestImg(f)
+
+        # 访问次数记录
+        set_num(get_num() + 1)
+
+
+        # 是否执行OCR
+        if use_ocr:
+            # 使用Opencv转换一下图片格式和名称
+            img = Image.open(upload_path)
+            read_text = reader.readtext(np.array(img), detail=0,
+                                        allowlist=allow_list,rotation_info=[-30, 30])
+        else:
+            read_text = '没有设置文字读取'
+
+
+        # 模型读取图像
+        img_name, predict_name, predict_conf = dtect_img(model_detect, img_path=upload_path)
+
+        if predict_name == 'PRIZM':
+            cls_text = predict_oneImg(model_cls_p, img_path=upload_path)
+        elif predict_name == 'MOSAIC':
+            cls_text = predict_oneImg(model_cls_m, img_path=upload_path)
+        else:
+            cls_text = ''
+        print(img_name,"分类： ", cls_text)
+
+
+        result = {  "serise": predict_name,
+                    "category": cls_text,
+                    "content": read_text,
+                    "imageurl": "static/images/" + img_name }
+
+        return json.dumps(result)
+
+
+    return render_template('img_api.html')
+
+
 
 if __name__ == '__main__':
 
@@ -238,6 +283,6 @@ if __name__ == '__main__':
 
     # 是否使用OCR，使用后速度会下降很多，相对于yolo
     use_ocr = True
-    app.debug = False
+    app.debug = True
     print(torch.cuda.is_available())
     app.run()
