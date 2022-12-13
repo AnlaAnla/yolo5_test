@@ -22,9 +22,9 @@ from datetime import timedelta
     WARNING
     下面三行用在window系统，在linux有问题的话，删掉
 '''
-import pathlib
-temp = pathlib.PosixPath
-pathlib.PosixPath = pathlib.WindowsPath
+# import pathlib
+# temp = pathlib.PosixPath
+# pathlib.PosixPath = pathlib.WindowsPath
 # -----------------------------------------
 
 # 设置允许的文件格式
@@ -279,7 +279,7 @@ if __name__ == '__main__':
     model_detect = DetectMultiBackend('weights/ball_card02.pt', device=device)
     model_cls_p = DetectMultiBackend('weights/ball_card_cls2prime.pt', device=device)
     model_cls_m = DetectMultiBackend('weights/ball_card_cls2mosaic.pt', device=device)
-    model_cls_o = DetectMultiBackend('weights/ball_card_cls2optic.pt', device=device)
+    model_cls_o = DetectMultiBackend('weights/ball_card_cls2optic02.pt', device=device)
 
     reader = easyocr.Reader(['en'])
     allow_list = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
